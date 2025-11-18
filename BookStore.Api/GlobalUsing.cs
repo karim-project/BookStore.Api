@@ -1,0 +1,9 @@
+﻿global using BookStore.Api.Models;
+global using BookStore.Api.Data;
+//global using BookStore.Api.ViewModel;
+global using BookStore.Api.Repositories;
+global using BookStore.Api.Repositories.IRepository;
+global using BookStore.Api.Utitlies;
+global using System.ComponentModel.DataAnnotations;
+//global using BookStore.Api.DTOs.Request;
+//global using BookStore.Api.DTOs.Response;

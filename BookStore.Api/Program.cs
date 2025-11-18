@@ -1,11 +1,12 @@
 
-using BookStore.Api.Data;
-using BookStore.Api.Models;
-using BookStore.Api.Repositories;
-using BookStore.Api.Repositories.IRepository;
+using BookStore.Api.Utitlies.DBInitilizer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Stripe;
+using Mapster;
+using BookStore.Api.Cnfigration;
 
 namespace BookStore.Api
 {
@@ -47,6 +48,9 @@ namespace BookStore.Api
                 options.AccessDeniedPath = "/Identity/Account/AccessDenied"; // Default access denied path
             });
 
+            builder.Services.AddTransient<IEmailSender, EmailSeder>();
+
+            builder.Services.AddScoped<IDBInitilizer, DBInitilizer>();
             builder.Services.AddScoped<IRepository<Cart>, Repository<Cart>>();
             builder.Services.AddScoped<IRepository<Book>, Repository<Book>>();
             builder.Services.AddScoped<IRepository<Category>, Repository<Category>>();
@@ -55,7 +59,15 @@ namespace BookStore.Api
             builder.Services.AddScoped<IRepository<Orders>, Repository<Orders>>();
             builder.Services.AddScoped<IRepository<OrdersItem>, Repository<OrdersItem>>();
 
+            builder.Services.RegisterMapesterConfg();
+            builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection("Stripe"));
+            StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
+
             var app = builder.Build();
+
+            var scope = app.Services.CreateScope();
+            var service = scope.ServiceProvider.GetService<IDBInitilizer>();
+            service!.Initialize();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
