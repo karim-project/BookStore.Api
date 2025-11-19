@@ -222,7 +222,7 @@ namespace BookStore.Api.Areas.Identity.Controllers
                 userId = user.Id,
             });
         }
-
+        [HttpPost("ValidateOTP")]
         public async Task<IActionResult> ValidateOTP(ValidateOTPRequset validateOTPRequset)
         {
             var result = await _applicationUserOTPrepositry.GetOneAsync(e => e.ApplicationUserId == validateOTPRequset.ApplicationUserId && e.OTP == validateOTPRequset.OTP && e.IsValid);
