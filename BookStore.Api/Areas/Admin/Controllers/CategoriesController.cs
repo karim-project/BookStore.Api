@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using BookStore.Api.DTOs.Request;
+using Mapster;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
@@ -38,11 +40,13 @@ namespace BookStore.Api.Areas.Admin.Controllers
             return Ok(category);
         }
 
-        [HttpPost]
+        [HttpPost("")]
         [Authorize(Roles = $"{SD.Super_Admin_Role} ,{SD.Admin_Role}")]
-        public async Task<IActionResult> Create(Category category , CancellationToken cancellationToken)
+        public async Task<IActionResult> Create(CreateCategoryRequest createCategoryRequest , CancellationToken cancellationToken)
         {
-           await _categoryrepository.AddAsync(category , cancellationToken);
+            Category category = createCategoryRequest.Adapt<Category>();
+
+           await _categoryrepository.AddAsync(category, cancellationToken);
            await _categoryrepository.CommitAsync(cancellationToken);
 
             return CreatedAtAction(nameof(GetOne), new { id = category.Id }, new
@@ -53,16 +57,16 @@ namespace BookStore.Api.Areas.Admin.Controllers
 
         [HttpPut("{id}")]
         [Authorize(Roles = $"{SD.Super_Admin_Role} ,{SD.Admin_Role}")]
-        public async Task<IActionResult> Edit(int id , Category category ,CancellationToken cancellationToken)
+        public async Task<IActionResult> Edit(int id , UpdateCategoryRequest updateCategoryRequest ,CancellationToken cancellationToken)
         {
             var categoryInDb =await _categoryrepository.GetOneAsync(e => e.Id == id , tracked:false, cancellationToken:cancellationToken);
 
             if(categoryInDb is null)
                 return NotFound();
              
-            categoryInDb.Name = category.Name;
-            categoryInDb.Description = category.Description;
-            categoryInDb.Status = category.Status;
+            categoryInDb.Name = updateCategoryRequest.Name;
+            categoryInDb.Description = updateCategoryRequest.Description;
+            categoryInDb.Status = updateCategoryRequest.Status;
 
             await _categoryrepository.CommitAsync(cancellationToken);
 
