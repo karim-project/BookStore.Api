@@ -1,10 +1,14 @@
 ﻿using BookStore.Api.DTOs.Request;
 using BookStore.Api.DTOs.Response;
+using BookStore.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace BookStore.Api.Areas.Identity.Controllers
@@ -18,42 +22,44 @@ namespace BookStore.Api.Areas.Identity.Controllers
         private readonly IEmailSender _emailSender;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IRepository<ApplicationUserOTP> _applicationUserOTPrepositry;
+        private readonly ITokenService _tokenService;
 
-        public AccountController(UserManager<ApplicationUser> userManager, IEmailSender emailSender, SignInManager<ApplicationUser> signInManager, IRepository<ApplicationUserOTP> applicationUserOTPrepositry)
+        public AccountController(UserManager<ApplicationUser> userManager, IEmailSender emailSender, SignInManager<ApplicationUser> signInManager, IRepository<ApplicationUserOTP> applicationUserOTPrepositry, ITokenService tokenService)
         {
             _userManager = userManager;
             _emailSender = emailSender;
             _signInManager = signInManager;
             _applicationUserOTPrepositry = applicationUserOTPrepositry;
+            _tokenService = tokenService;
         }
 
         [HttpPost("Register")]
         public async Task<IActionResult> Register(RegistorRequest registorRequest)
         {
             // Create New User
-            var user = new ApplicationUser() 
+            var user = new ApplicationUser()
             {
-            FirstName = registorRequest.FirstName,
-            LastName = registorRequest.LastName,
-            Email = registorRequest.Email,
-            UserName = registorRequest.UserName,
+                FirstName = registorRequest.FirstName,
+                LastName = registorRequest.LastName,
+                Email = registorRequest.Email,
+                UserName = registorRequest.UserName,
             };
 
-            var result =await _userManager.CreateAsync(user , registorRequest.Password);
+            var result = await _userManager.CreateAsync(user, registorRequest.Password);
 
-            if (!result.Succeeded) 
+            if (!result.Succeeded)
             {
-            return BadRequest(result.Errors);
+                return BadRequest(result.Errors);
             }
 
             // Send Comfirm Email
-            var token =await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
 
-            var link = Url.Action(nameof(ConfirmEmail),"Account" , new {area = "Identity",token , userId = user.Id },Request.Scheme);
+            var link = Url.Action(nameof(ConfirmEmail), "Account", new { area = "Identity", token, userId = user.Id }, Request.Scheme);
 
-           await _emailSender.SendEmailAsync(registorRequest.Email, "BookStore - Comfirm your email", $"<h1>Confirm Your Email By Clicking <a href='{link}'>Here</a></h1>");
+            await _emailSender.SendEmailAsync(registorRequest.Email, "BookStore - Comfirm your email", $"<h1>Confirm Your Email By Clicking <a href='{link}'>Here</a></h1>");
 
-          await  _userManager.AddToRoleAsync(user, SD.Customer_Role);
+            await _userManager.AddToRoleAsync(user, SD.Customer_Role);
 
             return Ok(new
             {
@@ -61,11 +67,11 @@ namespace BookStore.Api.Areas.Identity.Controllers
             });
         }
         [HttpPost("ConfirmEmail")]
-        public async Task<IActionResult> ConfirmEmail(string userId , string token) 
+        public async Task<IActionResult> ConfirmEmail(string userId, string token)
         {
-            var user =await _userManager.FindByIdAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId);
 
-            if(user is null)
+            if (user is null)
             {
                 return NotFound(new
                 {
@@ -73,13 +79,13 @@ namespace BookStore.Api.Areas.Identity.Controllers
                 });
             }
 
-            var result =await _userManager.ConfirmEmailAsync(user, token);
+            var result = await _userManager.ConfirmEmailAsync(user, token);
 
             if (!result.Succeeded)
             {
                 return BadRequest(new
                 {
-                   msg = "Invalid or expired token"
+                    msg = "Invalid or expired token"
                 });
             }
             else
@@ -90,23 +96,23 @@ namespace BookStore.Api.Areas.Identity.Controllers
                 });
             }
 
-                
+
         }
         [HttpPost("Login")]
         public async Task<IActionResult> Login(LoginRequest loginRequest)
         {
-            var user =await _userManager.FindByNameAsync(loginRequest.UserNameOrEmail) ??await _userManager.FindByEmailAsync(loginRequest.UserNameOrEmail);
+            var user = await _userManager.FindByNameAsync(loginRequest.UserNameOrEmail) ?? await _userManager.FindByEmailAsync(loginRequest.UserNameOrEmail);
 
-            if(user is null)
+            if (user is null)
             {
                 return NotFound(new ErrorModelResponse
                 {
-                   Code = "Invalid Cred",
-                   Description = "Invalid User Name / Email OR Password"
+                    Code = "Invalid Cred",
+                    Description = "Invalid User Name / Email OR Password"
                 });
             }
 
-            var result =await _signInManager.PasswordSignInAsync(user ,loginRequest.Password,loginRequest.RememberMe,lockoutOnFailure:false);
+            var result = await _signInManager.PasswordSignInAsync(user, loginRequest.Password, loginRequest.RememberMe, lockoutOnFailure: false);
 
             if (!result.Succeeded)
             {
@@ -129,7 +135,36 @@ namespace BookStore.Api.Areas.Identity.Controllers
                         Description = "Invalid User Name / Email OR Password"
                     });
             }
-            return Ok();
+
+            //generate Token
+            var userRole = await _userManager.GetRolesAsync(user);
+
+
+            var claims = new List<Claim>
+             {
+                  new Claim(ClaimTypes.Name, user.UserName!),
+                  new Claim(ClaimTypes.Email, user.Email!),
+                  new Claim(ClaimTypes.NameIdentifier, user.Id),
+                  new Claim(ClaimTypes.Role, String.Join( ", ",       userRole)),
+                  new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            };
+
+
+            var accessToken = _tokenService.GenerateAccessToken(claims);
+            var refreshToken = _tokenService.GenerateRefreshToken();
+
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+
+            await _userManager.UpdateAsync(user);
+
+            return Ok(new
+            {
+                AccessToken = accessToken,
+                ValidTo = "30 min",
+                RefreshToken = refreshToken,
+                RefreshTokenExpiration = "7 day"
+            });
         }
         [HttpPost("ResendComfirmEmail")]
         public async Task<IActionResult> ResendComfirmEmail(ResendComfirmEmailRequset resendComfirmEmailRequset)
@@ -188,7 +223,7 @@ namespace BookStore.Api.Areas.Identity.Controllers
                 });
             }
 
-            var userOTPs =await _applicationUserOTPrepositry.GetAsync(e => e.ApplicationUserId == user.Id);
+            var userOTPs = await _applicationUserOTPrepositry.GetAsync(e => e.ApplicationUserId == user.Id);
 
             var totalOTP = userOTPs.Count(e => (DateTime.UtcNow - e!.CreateAt).TotalHours < 24);
 
@@ -213,11 +248,11 @@ namespace BookStore.Api.Areas.Identity.Controllers
                 ValidTO = DateTime.UtcNow.AddDays(1),
             });
 
-           await _applicationUserOTPrepositry.CommitAsync();
+            await _applicationUserOTPrepositry.CommitAsync();
 
             await _emailSender.SendEmailAsync(user.Email!, "BookStore - Reset your password", $"<h1>Use This OTP: {otp} To Reset Your Account. Don't share it.</h1>");
 
-            return CreatedAtAction("ValidateOTP" , new
+            return CreatedAtAction("ValidateOTP", new
             {
                 userId = user.Id,
             });
@@ -254,10 +289,54 @@ namespace BookStore.Api.Areas.Identity.Controllers
             var result = await _userManager.ResetPasswordAsync(user, token, newPasswordRequset.Password);
 
             if (!result.Succeeded)
-            { 
+            {
                 return BadRequest(result.Errors);
             }
             return Ok();
+        }
+
+        [HttpPost]
+        [Route("Refresh")]
+        public async Task<IActionResult> Refresh(TokenApiRequest tokenApiRequest)
+        {
+            if (tokenApiRequest is null || tokenApiRequest.RefreshToken is null || tokenApiRequest.AccessToken is null)
+                return BadRequest("Invalid client request");
+
+            string accessToken = tokenApiRequest.AccessToken;
+            string refreshToken = tokenApiRequest.RefreshToken;
+
+            var principal = _tokenService.GetPrincipalFromExpiredToken(accessToken);
+
+            var userName = principal.Identity.Name;
+            var user = _userManager.Users.FirstOrDefault(e => e.UserName == userName);
+
+            if (user is null || user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.Now)
+                return BadRequest("Invalid client request");
+
+            var newAccessToken = _tokenService.GenerateAccessToken(principal.Claims);
+            var newRefreshToken = _tokenService.GenerateRefreshToken();
+
+            user.RefreshToken = newRefreshToken;
+            await _userManager.UpdateAsync(user);
+
+            return Ok(new
+            {
+                AccessToken = newAccessToken,
+                ValidTo = "30 min",
+                RefreshToken = newRefreshToken,
+            });
+        }
+
+        [HttpPost, Authorize]
+        [Route("revoke")]
+        public async Task<IActionResult> Revoke()
+        {
+            var username = User.Identity.Name;
+            var user = _userManager.Users.FirstOrDefault(e => e.UserName == username);
+            if (user == null) return BadRequest();
+            user.RefreshToken = null;
+            await _userManager.UpdateAsync(user);
+            return NoContent();
         }
 
     }

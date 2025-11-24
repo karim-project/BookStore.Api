@@ -5,5 +5,5 @@ global using BookStore.Api.Repositories;
 global using BookStore.Api.Repositories.IRepository;
 global using BookStore.Api.Utitlies;
 global using System.ComponentModel.DataAnnotations;
-//global using BookStore.Api.DTOs.Request;
-//global using BookStore.Api.DTOs.Response;
+global using BookStore.Api.DTOs.Request;
+global using BookStore.Api.DTOs.Response;

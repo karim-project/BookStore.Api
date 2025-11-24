@@ -23,7 +23,7 @@ namespace BookStore.Api.Areas.Admin.Controllers
         {
             return Ok(_userManager.Users.Adapt<IEnumerable<UsersResponse>>());
         }
-
+        [HttpPut("{id}")]
         public async Task<IActionResult> LockUnLock(string id)
         {
             var user = await _userManager.FindByIdAsync(id);

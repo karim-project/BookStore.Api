@@ -27,7 +27,7 @@ namespace BookStore.Api.Areas.Admin.Controllers
             return Ok(categories.AsEnumerable());
         }
         [HttpGet("{id}")]
-        [Authorize(Roles = $"{SD.Super_Admin_Role} ,{SD.Admin_Role}")]
+        [Authorize]
         public IActionResult GetOne(int id , CancellationToken cancellationToken)
         {
             var category = _categoryrepository.GetOneAsync(e => e.Id == id , tracked:false , cancellationToken:cancellationToken); 

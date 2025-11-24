@@ -1,12 +1,16 @@
 
+using BookStore.Api.Cnfigration;
+using BookStore.Api.Services;
 using BookStore.Api.Utitlies.DBInitilizer;
+using Mapster;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Stripe;
-using Mapster;
-using BookStore.Api.Cnfigration;
+using System.Text;
 
 namespace BookStore.Api
 {
@@ -59,9 +63,31 @@ namespace BookStore.Api
             builder.Services.AddScoped<IRepository<Orders>, Repository<Orders>>();
             builder.Services.AddScoped<IRepository<OrdersItem>, Repository<OrdersItem>>();
 
+            builder.Services.AddTransient<ITokenService, Services.TokenService>();
+
             builder.Services.RegisterMapesterConfg();
             builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection("Stripe"));
             StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
+
+            builder.Services.AddAuthentication(option =>
+            {
+                option.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                option.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(confi =>
+            {
+                confi.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateAudience = true,
+                    ValidateIssuer = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = "https://localhost:7286",
+                    ValidAudience = "https://localhost:7286",
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("2BBFD56151D59D1A5713B18BCDE5F2BBFD56151D59D1A5713B18BCDE5F"))
+                };
+            });
+
+            //builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 
             var app = builder.Build();
 
@@ -78,6 +104,7 @@ namespace BookStore.Api
 
             app.UseHttpsRedirection();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
 
