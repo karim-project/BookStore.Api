@@ -83,9 +83,9 @@ namespace BookStore.Api.Areas.Admin.Controllers
             });
         }
         [HttpGet("{id}")]
-        public IActionResult GetOne(int id , CancellationToken cancellationToken)
+        public async Task<IActionResult> GetOne(int id , CancellationToken cancellationToken)
         {
-            var book = _bookRepository.GetOneAsync(e => e.Id == id , tracked:false , cancellationToken:cancellationToken);
+            var book =await _bookRepository.GetOneAsync(e => e.Id == id , tracked:false , cancellationToken:cancellationToken);
 
             if(book is null)    
                 return NotFound( new

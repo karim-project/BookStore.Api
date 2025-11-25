@@ -28,9 +28,9 @@ namespace BookStore.Api.Areas.Admin.Controllers
         }
         [HttpGet("{id}")]
         [Authorize]
-        public IActionResult GetOne(int id , CancellationToken cancellationToken)
+        public async Task<IActionResult> GetOne(int id , CancellationToken cancellationToken)
         {
-            var category = _categoryrepository.GetOneAsync(e => e.Id == id , tracked:false , cancellationToken:cancellationToken); 
+            var category =await _categoryrepository.GetOneAsync(e => e.Id == id , tracked:false , cancellationToken:cancellationToken); 
             
             if(category is null)
                 return NotFound(new
